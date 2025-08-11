@@ -4,6 +4,7 @@ import com.sesac.orderservice.dto.OrderRequestDTO;
 import com.sesac.orderservice.entity.Order;
 import com.sesac.orderservice.service.OrderService;
 import io.swagger.v3.oas.annotations.Operation;
+import jakarta.servlet.http.HttpServletRequest;
 import java.util.List;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
@@ -50,5 +51,16 @@ public class OrderController {
         } catch (RuntimeException e) {
             return ResponseEntity.status(HttpStatus.BAD_REQUEST).build();
         }
+    }
+
+    @GetMapping("/my")
+    @Operation(summary = "my order list", description = "order list logined user")
+    public ResponseEntity<List<Order>> getMyOrders(HttpServletRequest request) {
+        String userIdHeader = request.getHeader("X-User-Id");
+        if (userIdHeader == null) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
+        }
+        List<Order> orders = orderService.getOrdersByUserId(Long.parseLong(userIdHeader));
+        return ResponseEntity.status(HttpStatus.OK).body(orders);
     }
 }
