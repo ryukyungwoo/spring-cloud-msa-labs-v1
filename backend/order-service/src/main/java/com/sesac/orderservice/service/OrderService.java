@@ -6,6 +6,7 @@ import com.sesac.orderservice.client.dto.ProductDTO;
 import com.sesac.orderservice.client.dto.UserDTO;
 import com.sesac.orderservice.dto.OrderRequestDTO;
 import com.sesac.orderservice.entity.Order;
+import com.sesac.orderservice.facade.UserServiceFacade;
 import com.sesac.orderservice.repository.OrderRepository;
 import java.math.BigDecimal;
 import java.util.List;
@@ -19,8 +20,8 @@ import org.springframework.transaction.annotation.Transactional;
 public class OrderService {
 
     private final OrderRepository orderRepository;
-    private final UserServiceClient userServiceClient;
     private final ProductServiceClient productServiceClient;
+    private final UserServiceFacade userServiceFacade;
 
     public Order findById(Long id) {
         return orderRepository.findById(id).orElseThrow(
@@ -35,7 +36,7 @@ public class OrderService {
     @Transactional
     public Order createOrder(OrderRequestDTO request) {
 
-        UserDTO user = userServiceClient.getUserById(request.getUserId());
+        UserDTO user = userServiceFacade.getUserWithFallback(request.getUserId());
         if (user == null) throw new RuntimeException("User not found");
 
         ProductDTO product = productServiceClient.getProductById(request.getProductId());
