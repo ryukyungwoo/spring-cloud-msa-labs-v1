@@ -8,6 +8,8 @@ import com.sesac.orderservice.dto.OrderRequestDTO;
 import com.sesac.orderservice.entity.Order;
 import com.sesac.orderservice.facade.UserServiceFacade;
 import com.sesac.orderservice.repository.OrderRepository;
+import io.micrometer.tracing.Span;
+import io.micrometer.tracing.Tracer;
 import java.math.BigDecimal;
 import java.util.List;
 import lombok.RequiredArgsConstructor;
@@ -22,6 +24,7 @@ public class OrderService {
     private final OrderRepository orderRepository;
     private final ProductServiceClient productServiceClient;
     private final UserServiceFacade userServiceFacade;
+    private final Tracer tracer;
 
     public Order findById(Long id) {
         return orderRepository.findById(id).orElseThrow(
@@ -36,22 +39,35 @@ public class OrderService {
     @Transactional
     public Order createOrder(OrderRequestDTO request) {
 
-        UserDTO user = userServiceFacade.getUserWithFallback(request.getUserId());
-        if (user == null) throw new RuntimeException("User not found");
+        Span span = tracer.nextSpan()
+                          .name("createOrder")
+                          .tag("order.userId", request.getUserId())
+                          .tag("order.productId", request.getProductId())
+                          .start();
 
-        ProductDTO product = productServiceClient.getProductById(request.getProductId());
-        if (product == null) throw new RuntimeException("Product not found");
+        try (Tracer.SpanInScope ws = tracer.withSpan(span)) {
+            UserDTO user = userServiceFacade.getUserWithFallback(request.getUserId());
+            if (user == null) throw new RuntimeException("User not found");
 
-        if (product.getStockQuantity() < request.getQuantity()) {
-            throw new RuntimeException("Quantity not fulfill request Quantity");
+            ProductDTO product = productServiceClient.getProductById(request.getProductId());
+            if (product == null) throw new RuntimeException("Product not found");
+
+            if (product.getStockQuantity() < request.getQuantity()) {
+                throw new RuntimeException("Quantity not fulfill request Quantity");
+            }
+
+            Order order = new Order();
+            order.setUserId(request.getUserId());
+            order.setTotalAmount(product.getPrice().multiply(BigDecimal.valueOf(request.getQuantity())));
+            order.setStatus("COMPLETED");
+
+            return orderRepository.save(order);
+        } catch (Exception e) {
+            span.tag("error", e.getMessage());
+            throw e;
+        } finally {
+            span.end();
         }
-
-        Order order = new Order();
-        order.setUserId(request.getUserId());
-        order.setTotalAmount(product.getPrice().multiply(BigDecimal.valueOf(request.getQuantity())));
-        order.setStatus("COMPLETED");
-
-        return orderRepository.save(order);
     }
 
     public List<Order> getOrdersByUserId(Long id) {
