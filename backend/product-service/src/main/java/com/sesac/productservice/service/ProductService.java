@@ -23,4 +23,16 @@ public class ProductService {
     public List<Product> findAll() {
         return productRepository.findAll();
     }
+
+    @Transactional
+    public void decreaseStock(Long productId, Integer quantity) {
+        Product foundProduct = productRepository.findById(productId).orElseThrow(() -> new RuntimeException("Product not found with id : " + productId));
+
+        if (foundProduct.getStockQuantity() < quantity) {
+            throw new RuntimeException("out of stock");
+        }
+        foundProduct.setStockQuantity(foundProduct.getStockQuantity() - quantity);
+
+        System.out.println("stock decrease complete : " + productId + ", remain stock: " + foundProduct.getStockQuantity());
+    }
 }
